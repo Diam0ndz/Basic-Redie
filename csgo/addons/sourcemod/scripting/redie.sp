@@ -21,7 +21,11 @@ ConVar damageRespawns;
 bool isInRedie[MAXPLAYERS + 1];
 bool canRedie[MAXPLAYERS + 1];
 
+bool isInNoclip[MAXPLAYERS + 1];
+bool isBhop[MAXPLAYERS + 1];
+
 int lastButton[MAXPLAYERS + 1];
+
 
 public Plugin myinfo = 
 {
@@ -45,6 +49,8 @@ public void OnPluginStart()
 	
 	RegConsoleCmd("sm_redie", Command_Redie, "Become a ghost");
 	RegConsoleCmd("sm_unredie", Command_Unredie, "Get out of becoming a ghost");
+	RegConsoleCmd("sm_rmenu", Menu_RedieMenu, "If you are in redie, it opens the redie menu");
+	
 	
 	HookEvent("player_death", Event_PrePlayerDeath, EventHookMode_Pre);
 	HookEvent("player_spawn", Event_PlayerSpawn);
@@ -236,12 +242,15 @@ public void Redie(int client, bool fromDamage)
 	SetEntData(client, FindSendPropInfo("CBaseEntity", "m_CollisionGroup"), 2, 4, true); //No collisions with other players
 	SetEntProp(client, Prop_Data, "m_ArmorValue", 0); //Make sure we dont have armor
 	SetEntProp(client, Prop_Send, "m_bHasDefuser", 0); //Make sure we dont have a kit
+	isBhop[client] = true;
+	isInNoclip[client] = false;
 	if(!fromDamage)
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04You are now a ghost!");
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Hold your \x0Freload \x04key(Default: 'r') to gain \x0Fnoclip \x04temporarily!");
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Type '!unredie' to stop being a ghost.");
 	}
+	Menu_RedieMenu(client, 1);
 }
 
 public Action Command_Unredie(int client, int args)
@@ -310,16 +319,26 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	{
 		if(isInRedie[client])
 		{
+			if(isBhop[client])
+			{
+				if(buttons & IN_JUMP)
+				{
+					if(GetEntProp(client, Prop_Data, "m_nWaterLevel") <= 1 && !(GetEntityMoveType(client) & MOVETYPE_LADDER) && !(GetEntityFlags(client) & FL_ONGROUND))
+					{
+						SetEntPropFloat(client, Prop_Send, "m_flStamina", 0.0);
+						buttons &= ~IN_JUMP;
+					}
+				}
+			}
+		
 			if(buttons & IN_USE)
 			{
 				if(!(lastButton[client] & IN_USE))
 				{
-					//SetEntityMoveType(client, MOVETYPE_NOCLIP);
 					return Plugin_Handled;
 				}
 			}else if(lastButton[client] & IN_USE)
 			{
-				//SetEntityMoveType(client, MOVETYPE_WALK);
 				return Plugin_Continue;
 			}
 			else if(buttons & IN_RELOAD)
@@ -327,10 +346,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				if(!(lastButton[client] & IN_RELOAD))
 				{
 					SetEntityMoveType(client, MOVETYPE_NOCLIP);
+					isInNoclip[client] = true;
 				}
 			}else if(lastButton[client] & IN_RELOAD)
 			{
 				SetEntityMoveType(client, MOVETYPE_WALK);
+				isInNoclip[client] = false;
 			}
 		}
 		lastButton[client] = buttons;
@@ -373,27 +394,155 @@ public void EntityOutput_DoorBlocked(const char[] output, int caller, int activa
 	}
 }
 
-/*public Action EntityOutPut_ButtonPressed(const char[] output, int caller, int activator, float delay)
-{
-	if(IsValidClient(activator))
-	{
-		if(isInRedie[activator])
-		{
-			return Plugin_Handled;
-		}else
-		{
-			return Plugin_Continue;
-		}
-	}else
-	{
-		return Plugin_Handled;
-	}
-}*/
-
 stock bool IsValidClient(int client) //Checks for making sure we are a valid client
 {
 	if (client <= 0) return false;
 	if (client > MaxClients) return false;
 	if (!IsClientConnected(client)) return false;
 	return IsClientInGame(client);
+}
+
+public int RedieMenuHandler(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch(action)
+	{
+		case MenuAction_Select:
+		{
+			if(isInRedie[param1])
+			{
+				char info[32];
+				menu.GetItem(param2, info, sizeof(info));
+				if(StrEqual(info, "Noclip"))
+				{
+					PrintToChat(param1, " \x01[\x03Redie\x01] \x04Noclip toggled.");
+					if(isInNoclip[param1])
+					{
+						SetEntityMoveType(param1, MOVETYPE_WALK);
+						isInNoclip[param1] = false;
+					}
+					else if(!isInNoclip[param1])
+					{
+						SetEntityMoveType(param1, MOVETYPE_NOCLIP);
+						isInNoclip[param1] = true;
+					}
+					Menu_RedieMenu(param1, 1);
+				}
+				else if(StrEqual(info, "Bhop"))
+				{
+					PrintToChat(param1, " \x01[\x03Redie\x01] \x04Bhop toggled.");
+					if(isBhop[param1])
+					{
+						isBhop[param1] = false;
+					}
+					else if(!isBhop[param1])
+					{
+						isBhop[param1] = true;
+					}
+					Menu_RedieMenu(param1, 1);
+				}
+				else if(StrEqual(info, "Teleport"))
+				{
+					if(isInRedie[param1])
+					{
+						Menu_RedieTeleport(param1, 1);
+					}
+				}
+				else if(StrEqual(info, "Locations"))
+				{
+					//TO DO: list of all locations in new menu and when you select one it teleports you to it
+				}
+			}
+		}
+	}
+}
+
+public Action Menu_RedieMenu(int client, int args)
+{
+	if(isInRedie[client])
+	{
+		Menu redieMenu = new Menu(RedieMenuHandler, MenuAction_Select);
+		redieMenu.SetTitle("Redie Menu");
+		redieMenu.AddItem("blank", "Type !rmenu to get this", ITEMDRAW_DISABLED);
+		redieMenu.AddItem("blank", "menu back at any time", ITEMDRAW_DISABLED);
+		redieMenu.AddItem("Teleport", "Teleport");
+		redieMenu.AddItem("Locations", "Locations");
+		if(!isInNoclip[client])
+		{
+			redieMenu.AddItem("Noclip", "Noclip[X]");
+		}else
+		{
+			redieMenu.AddItem("Noclip", "Noclip[✓]");
+		}
+		if(!isBhop[client])
+		{
+			redieMenu.AddItem("Bhop", "Bhop[X]");
+		}else
+		{
+			redieMenu.AddItem("Bhop", "Bhop[✓]");
+		}
+		redieMenu.Display(client, MENU_TIME_FOREVER);
+		
+		return Plugin_Handled;
+	}else
+	{
+		PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be in redie to access the redie menu.");
+		return Plugin_Handled;
+	}
+}
+
+public int TeleportMenuHandler(Menu menu, MenuAction action, int param1, int param2)
+{
+	switch(action)
+	{
+		case MenuAction_Select:
+		{
+			if(isInRedie[param1])
+			{
+				char clientid2[64];
+				menu.GetItem(param2, clientid2, sizeof(clientid2));
+				int clientid3 = StringToInt(clientid2, 10);
+				
+				float destination[3];
+				GetClientAbsOrigin(clientid3, destination);
+				destination[2] += 10;
+				TeleportEntity(param1, destination, NULL_VECTOR, NULL_VECTOR);
+				
+				Menu_RedieTeleport(param1, 1);
+			}
+		}
+		case MenuAction_Cancel:
+		{
+			if(param2 == MenuCancel_ExitBack)
+			{
+				Menu_RedieMenu(param1, 1);
+			}
+		}
+	}
+}
+
+public Action Menu_RedieTeleport(int client, int args)
+{
+	if (isInRedie[client])
+	{
+		Menu teleportMenu = new Menu(TeleportMenuHandler, MenuAction_Select|MenuAction_End);
+		for (int i = 0; i < MaxClients; i++)
+		{
+			if(IsValidClient(i) && IsPlayerAlive(i))
+			{
+				char name[64];
+				GetClientName(i, name, sizeof(name));
+				
+				char clientid[64];
+				IntToString(i, clientid, sizeof(clientid));
+				teleportMenu.AddItem(clientid, name);
+			}
+		}
+		teleportMenu.ExitBackButton = true;
+		teleportMenu.Display(client, MENU_TIME_FOREVER);
+		return Plugin_Handled;
+	}else
+	{
+		PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be in redie to access this menu.");
+		return Plugin_Handled;
+	}
 }
