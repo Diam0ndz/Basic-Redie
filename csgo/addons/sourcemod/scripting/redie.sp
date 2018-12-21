@@ -171,6 +171,7 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	SDKHook(client, SDKHook_SetTransmit, SetTransmit);
 	if(isInRedie[client])
 	{
 		isInRedie[client] = false;
@@ -373,6 +374,15 @@ public Action WeaponCanUse(int client, int weapon)
 	}
 }
 
+public Action SetTransmit(int entity, int client)
+{
+	if(isInRedie[entity] && entity != client)
+	{
+		return Plugin_Handled;
+	}
+	return Plugin_Continue;
+}
+
 public Action OnNormalSoundPlayed(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags)
 {
 	if(entity && entity <= MaxClients && isInRedie[entity])
@@ -465,7 +475,6 @@ public Action Menu_RedieMenu(int client, int args)
 		redieMenu.AddItem("blank", "Type !rmenu to get this", ITEMDRAW_DISABLED);
 		redieMenu.AddItem("blank", "menu back at any time", ITEMDRAW_DISABLED);
 		redieMenu.AddItem("Teleport", "Teleport");
-		redieMenu.AddItem("Locations", "Locations");
 		if(!isInNoclip[client])
 		{
 			redieMenu.AddItem("Noclip", "Noclip[X]");
