@@ -211,8 +211,15 @@ public Action Command_Redie(int client, int args)
 	{
 		if(canRedie[client])
 		{
-			Redie(client, false);
-			return Plugin_Handled;
+			if(!IsPlayerAlive(client))
+			{
+				Redie(client, false);
+				return Plugin_Handled;
+			}else
+			{
+				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be dead in order to become a ghost!");
+				return Plugin_Handled;
+			}
 		}else
 		{
 			PrintToChat(client, " \x01[\x03Redie\x01] \x04Wait for a new round to start!");
