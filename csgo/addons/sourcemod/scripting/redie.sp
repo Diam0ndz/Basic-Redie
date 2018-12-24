@@ -3,7 +3,7 @@
 #define DEBUG
 
 #define PLUGIN_AUTHOR "Diam0ndzx, Extacy"
-#define PLUGIN_VERSION "1.1"
+#define PLUGIN_VERSION "1.2"
 #define MAX_BUTTONS 25
 
 #include <sourcemod>
@@ -16,6 +16,7 @@
 EngineVersion g_Game;
 
 ConVar enabled;
+ConVar isAutohopServer;
 ConVar damageRespawns;
 
 bool isInRedie[MAXPLAYERS + 1];
@@ -50,6 +51,7 @@ public void OnPluginStart()
 	
 	enabled = CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not");
 	damageRespawns = CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not");
+	isAutohopServer = CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default");
 	
 	g_hAutoBhop = FindConVar("sv_autobunnyhopping");
 	SetConVarFlags(g_hAutoBhop, GetConVarFlags(g_hAutoBhop) & ~FCVAR_REPLICATED);
@@ -75,7 +77,13 @@ public void OnPluginStart()
 public void OnClientPutInServer(int client)
 {
 	g_bBhopEnabled[client] = false;
-	SendConVarValue(client, g_hAutoBhop, "0");
+	if(!GetConVarBool(isAutohopServer))
+	{
+		SendConVarValue(client, g_hAutoBhop, "0");
+	} else
+	{
+		SendConVarValue(client, g_hAutoBhop, "1");
+	}
 	
 	SDKHook(client, SDKHook_PreThink, OnPreThink);
 	
@@ -188,6 +196,10 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 	{
 		isInRedie[client] = false;
 	}
+	if(!GetConVarBool(isAutohopServer))
+	{
+		SendConVarValue(client, g_hAutoBhop, "0");
+	}
 }
 
 public Action Event_PostRoundEnd(Event event, const char[] name, bool dontBroadcast)
@@ -196,6 +208,11 @@ public Action Event_PostRoundEnd(Event event, const char[] name, bool dontBroadc
 	{
 		canRedie[i] = false;
 		Unredie(i); //Make sure all players are not in redie for round end
+		
+		if(!GetConVarBool(isAutohopServer))
+		{
+			SendConVarValue(i, g_hAutoBhop, "0");
+		}
 	}
 }
 
@@ -271,8 +288,11 @@ public void Redie(int client, bool fromDamage)
 	SetEntProp(client, Prop_Data, "m_ArmorValue", 0); //Make sure we dont have armor
 	SetEntProp(client, Prop_Send, "m_bHasDefuser", 0); //Make sure we dont have a kit
 	
-	g_bBhopEnabled[client] = true;
-	SendConVarValue(client, g_hAutoBhop, "1");
+	if(!GetConVarBool(isAutohopServer))
+	{
+		g_bBhopEnabled[client] = true;
+		SendConVarValue(client, g_hAutoBhop, "1");
+	}
 	
 	
 	isInNoclip[client] = false;
@@ -327,8 +347,11 @@ public void Unredie(int client)
 	ForcePlayerSuicide(client);
 	isInRedie[client] = false;
 	
-	g_bBhopEnabled[client] = false;
-	SendConVarValue(client, g_hAutoBhop, "0");
+	if(!GetConVarBool(isAutohopServer))
+	{
+		g_bBhopEnabled[client] = false;
+		SendConVarValue(client, g_hAutoBhop, "0");
+	}
 	
 	PrintToChat(client, " \x01[\x03Redie\x01] \x04You are no longer a ghost!");
 }
@@ -505,10 +528,6 @@ public int RedieMenuHandler(Menu menu, MenuAction action, int param1, int param2
 						Menu_RedieTeleport(param1, 1);
 					}
 				}
-				else if (StrEqual(info, "Locations"))
-				{
-					//TO DO: list of all locations in new menu and when you select one it teleports you to it
-				}
 			}
 		}
 	}
@@ -530,12 +549,15 @@ public Action Menu_RedieMenu(int client, int args)
 		{
 			redieMenu.AddItem("Noclip", "Noclip[✓]");
 		}
-		if (!g_bBhopEnabled[client])
+		if(!GetConVarBool(isAutohopServer))
 		{
-			redieMenu.AddItem("Bhop", "Bhop[X]");
-		} else
-		{
-			redieMenu.AddItem("Bhop", "Bhop[✓]");
+			if (!g_bBhopEnabled[client])
+			{
+				redieMenu.AddItem("Bhop", "Bhop[X]");
+			} else
+			{
+				redieMenu.AddItem("Bhop", "Bhop[✓]");
+			}
 		}
 		redieMenu.Display(client, MENU_TIME_FOREVER);
 		
