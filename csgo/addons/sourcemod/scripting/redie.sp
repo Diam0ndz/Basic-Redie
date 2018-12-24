@@ -26,6 +26,8 @@ bool isBhop[MAXPLAYERS + 1];
 
 int lastButton[MAXPLAYERS + 1];
 
+int lastUsedCommand[MAXPLAYERS + 1];
+int cooldownTimer = 2;
 
 public Plugin myinfo = 
 {
@@ -74,6 +76,7 @@ public void OnClientPutInServer(int client)
 public void OnClientPostAdminCheck(int client)
 {
 	isInRedie[client] = false; //You can't be in redie the moment you join
+	lastUsedCommand[client] = 0; 
 }
 
 public void OnClientDisconnect_Pos(int client)
@@ -207,14 +210,25 @@ public Action Command_Redie(int client, int args)
 		return Plugin_Handled;
 	}
 	
+	
+	
 	if(IsValidClient(client))
 	{
 		if(canRedie[client])
 		{
 			if(!IsPlayerAlive(client))
 			{
-				Redie(client, false);
-				return Plugin_Handled;
+				int time = GetTime();
+				if(time - lastUsedCommand[client] < cooldownTimer)
+				{
+					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait before using the command again.");
+					return Plugin_Handled;
+				}else
+				{
+					lastUsedCommand[client] = time;
+					Redie(client, false);
+					return Plugin_Handled;
+				}
 			}else
 			{
 				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be dead in order to become a ghost!");
@@ -273,8 +287,17 @@ public Action Command_Unredie(int client, int args)
 		{
 			if(isInRedie[client])
 			{
-				Unredie(client);
-				return Plugin_Handled;
+				int time = GetTime();
+				if(time - lastUsedCommand[client] < cooldownTimer)
+				{
+					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait before using the command again.");
+					return Plugin_Handled;
+				}else
+				{
+					lastUsedCommand[client] = time;
+					Unredie(client);
+					return Plugin_Handled;
+				}
 			}else
 			{
 				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must already be a ghost to get out of it!");
@@ -329,14 +352,18 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		{
 			if(isBhop[client])
 			{
-				if(buttons & IN_JUMP)
+				/*if(buttons & IN_JUMP)
 				{
 					if(GetEntProp(client, Prop_Data, "m_nWaterLevel") <= 1 && !(GetEntityMoveType(client) & MOVETYPE_LADDER) && !(GetEntityFlags(client) & FL_ONGROUND))
 					{
 						SetEntPropFloat(client, Prop_Send, "m_flStamina", 0.0);
 						buttons &= ~IN_JUMP;
 					}
-				}
+				}*/
+				SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "1");
+			}else
+			{
+				SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
 			}
 		
 			if(buttons & IN_USE)
