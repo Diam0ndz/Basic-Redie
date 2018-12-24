@@ -27,7 +27,7 @@ bool isBhop[MAXPLAYERS + 1];
 int lastButton[MAXPLAYERS + 1];
 
 int lastUsedCommand[MAXPLAYERS + 1];
-int cooldownTimer = 2;
+int cooldownTimer = 5;
 
 public Plugin myinfo = 
 {
