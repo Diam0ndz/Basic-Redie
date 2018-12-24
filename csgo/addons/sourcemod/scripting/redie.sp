@@ -209,9 +209,6 @@ public Action Command_Redie(int client, int args)
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Redie is currently disabled!");
 		return Plugin_Handled;
 	}
-	
-	
-	
 	if(IsValidClient(client))
 	{
 		if(canRedie[client])
@@ -316,6 +313,7 @@ public void Unredie(int client)
 	SetEntProp(client, Prop_Send, "m_lifeState", 0); 
 	ForcePlayerSuicide(client); 
 	isInRedie[client] = false; 
+	isBhop[client] = false;
 	PrintToChat(client, " \x01[\x03Redie\x01] \x04You are no longer a ghost!");
 }
 
@@ -352,20 +350,15 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		{
 			if(isBhop[client])
 			{
-				/*if(buttons & IN_JUMP)
+				if(buttons & IN_JUMP)
 				{
 					if(GetEntProp(client, Prop_Data, "m_nWaterLevel") <= 1 && !(GetEntityMoveType(client) & MOVETYPE_LADDER) && !(GetEntityFlags(client) & FL_ONGROUND))
 					{
 						SetEntPropFloat(client, Prop_Send, "m_flStamina", 0.0);
 						buttons &= ~IN_JUMP;
 					}
-				}*/
-				SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "1");
-			}else
-			{
-				SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
+				}
 			}
-		
 			if(buttons & IN_USE)
 			{
 				if(!(lastButton[client] & IN_USE))
@@ -389,6 +382,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				isInNoclip[client] = false;
 			}
 		}
+		SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
 		lastButton[client] = buttons;
 		return Plugin_Continue;
 	}else
