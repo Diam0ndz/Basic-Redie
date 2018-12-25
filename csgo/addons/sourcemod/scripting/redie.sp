@@ -18,6 +18,7 @@ EngineVersion g_Game;
 ConVar enabled;
 ConVar isAutohopServer;
 ConVar damageRespawns;
+ConVar teleportsEnabled;
 
 bool isInRedie[MAXPLAYERS + 1];
 bool canRedie[MAXPLAYERS + 1];
@@ -50,6 +51,7 @@ public void OnPluginStart()
 	enabled = CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not");
 	isAutohopServer = CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default");
 	damageRespawns = CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not");
+	teleportsEnabled = CreateConVar("sm_redieteleports", "0", "Set if teleports are enabled while in redie");
 	
 	RegConsoleCmd("sm_redie", Command_Redie, "Become a ghost");
 	RegConsoleCmd("sm_unredie", Command_Unredie, "Get out of becoming a ghost");
@@ -143,6 +145,16 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 		SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+	}
+	if(!GetConVarBool(teleportsEnabled))
+	{
+		ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
+		while((ent = FindEntityByClassname(ent, "trigger_teleport")) != -1)
+		{
+			SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		}
 	}
 	ent = MaxClients + 1;
 	while((ent = FindEntityByClassname(ent, "trigger_hurt")) != -1)
