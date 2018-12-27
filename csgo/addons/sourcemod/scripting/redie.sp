@@ -3,7 +3,7 @@
 #define DEBUG
 
 #define PLUGIN_AUTHOR "Diam0ndzx" //With Help from Extacy
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "1.2"
 #define MAX_BUTTONS 25
 
 #include <sourcemod>
@@ -17,8 +17,12 @@ EngineVersion g_Game;
 
 ConVar enabled;
 ConVar isAutohopServer;
+ConVar autoHop;
 ConVar damageRespawns;
 ConVar teleportsEnabled;
+ConVar triggersEnabled;
+ConVar rotationsEnabled;
+ConVar trainsEnabled;
 
 bool isInRedie[MAXPLAYERS + 1];
 bool canRedie[MAXPLAYERS + 1];
@@ -49,12 +53,17 @@ public void OnPluginStart()
 	}
 	
 	enabled = CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not");
-	isAutohopServer = CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default");
+	isAutohopServer = CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default", FCVAR_HIDDEN);
+	autoHop = FindConVar("sv_autobunnyhopping");
 	damageRespawns = CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not");
 	teleportsEnabled = CreateConVar("sm_redieteleports", "0", "Set if teleports are enabled while in redie");
+	triggersEnabled = CreateConVar("sm_redietriggers", "0", "Set if triggers are enabled while in redie");
+	trainsEnabled = CreateConVar("sm_redietrains", "0", "Set if trains(tanktrains) are enabled while in redie");
+	rotationsEnabled = CreateConVar("sm_redierotations", "0", "Set if func_rotatings are enabled while in redie");
 	
 	RegConsoleCmd("sm_redie", Command_Redie, "Become a ghost");
 	RegConsoleCmd("sm_unredie", Command_Unredie, "Get out of becoming a ghost");
+	RegConsoleCmd("sm_isredie", Command_IsRedie, "Lists players in redie", ADMFLAG_BAN);
 	RegConsoleCmd("sm_rmenu", Menu_RedieMenu, "If you are in redie, it opens the redie menu");
 	
 	
@@ -64,12 +73,13 @@ public void OnPluginStart()
 	//HookEvent("round_end", Event_PostRoundEnd, EventHookMode_Post);
 	
 	AddNormalSoundHook(OnNormalSoundPlayed);
+	AddCommandListener(Command_JoinTeam, "jointeam");
 	
 	HookEntityOutput("func_door", "OnBlockedOpening", EntityOutput_DoorBlocked);
 	HookEntityOutput("func_door", "OnBlockedClosing", EntityOutput_DoorBlocked);
+	HookEntityOutput("func_door_rotating", "OnBlockedOpening", EntityOutput_DoorBlocked);
+	HookEntityOutput("func_door_rotating", "OnBlockedClosing", EntityOutput_DoorBlocked);
 	//HookEntityOutput("func_button", "OnPressed", EntityOutPut_ButtonPressed);
-	
-	AutoExecConfig(true, "redie");
 }
 
 public void OnClientPutInServer(int client)
@@ -94,6 +104,10 @@ public Action Event_PrePlayerDeath(Event event, const char[] name, bool dontBroa
 	if(isInRedie[client])
 	{
 		isInRedie[client] = false;
+		if(!GetConVarBool(isAutohopServer))
+		{
+			SendConVarValue(client, autoHop, "0");
+		}
 		return Plugin_Handled; //Prevent things that would happen after normal players would die. 
 	}else
 	{
@@ -111,12 +125,15 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
 	}
-	ent = MaxClients + 1;
-	while((ent = FindEntityByClassname(ent, "func_rotating")) != -1)
+	if(!GetConVarBool(rotationsEnabled))
 	{
-		SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
-		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
-		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		ent = MaxClients + 1;
+		while((ent = FindEntityByClassname(ent, "func_rotating")) != -1)
+		{
+			SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		}
 	}
 	ent = MaxClients + 1;
 	while((ent = FindEntityByClassname(ent, "func_breakable")) != -1)
@@ -125,6 +142,23 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
 	}
+	if(!GetConVarBool(trainsEnabled))
+	{
+		ent = MaxClients + 1;
+		while((ent = FindEntityByClassname(ent, "func_tanktrain")) != -1)
+		{
+			SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		}
+		ent = MaxClients + 1;
+		while((ent = FindEntityByClassname(ent, "func_tracktrain")) != -1)
+		{
+			SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		}
+	}
 	ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
 	while((ent = FindEntityByClassname(ent, "func_button")) != -1)
 	{
@@ -132,19 +166,22 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
 	}
-	ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
-	while((ent = FindEntityByClassname(ent, "trigger_once")) != -1)
+	if(!GetConVarBool(triggersEnabled))
 	{
-		SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
-		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
-		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
-	}
-	ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
-	while((ent = FindEntityByClassname(ent, "trigger_multiple")) != -1)
-	{
-		SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
-		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
-		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
+		while((ent = FindEntityByClassname(ent, "trigger_once")) != -1)
+		{
+			SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		}
+		ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
+		while((ent = FindEntityByClassname(ent, "trigger_multiple")) != -1)
+		{
+			SDKHookEx(ent, SDKHook_EndTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
+			SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
+		}
 	}
 	if(!GetConVarBool(teleportsEnabled))
 	{
@@ -192,6 +229,18 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 	if(isInRedie[client])
 	{
 		isInRedie[client] = false;
+		if(!GetConVarBool(isAutohopServer))
+		{
+			SendConVarValue(client, autoHop, "0");
+		}
+	}
+	if(GetConVarBool(isAutohopServer))
+	{
+		SendConVarValue(client, autoHop, "1");
+	}
+	else
+	{
+		SendConVarValue(client, autoHop, "0");
 	}
 }
 
@@ -212,6 +261,19 @@ public Action TraceAttack(int victim, int &attacker, int &inflictor, float &dama
 		{
 			return Plugin_Handled; //Prevent players on redie from taking damage
 		}
+	}
+	return Plugin_Continue;
+}
+
+public Action Command_JoinTeam(int client, const char[] command, int argc)
+{
+	if(!IsValidClient(client)) return Plugin_Stop;
+	
+	if(isInRedie[client])
+	{
+		Unredie(client);
+		PrintToChat(client, " \x01[\x03Redie\x01] \x04You were taken out of redie because you tried to switch teams.");
+		return Plugin_Stop;
 	}
 	return Plugin_Continue;
 }
@@ -277,6 +339,7 @@ public void Redie(int client, bool fromDamage)
 	SetEntProp(client, Prop_Send, "m_bHasDefuser", 0); //Make sure we dont have a kit
 	isBhop[client] = true;
 	isInNoclip[client] = false;
+	SendConVarValue(client, autoHop, "1");
 	if(!fromDamage)
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04You are now a ghost!");
@@ -328,7 +391,34 @@ public void Unredie(int client)
 	ForcePlayerSuicide(client); 
 	isInRedie[client] = false; 
 	isBhop[client] = false;
+	if(!GetConVarBool(isAutohopServer))
+	{
+		SendConVarValue(client, autoHop, "0");
+	}
 	PrintToChat(client, " \x01[\x03Redie\x01] \x04You are no longer a ghost!");
+}
+
+public Action Command_IsRedie(int client, int args)
+{
+	if(!GetConVarBool(enabled))
+	{
+		PrintToChat(client, " \x01[\x03Redie\x01] \x04Redie is currently disabled!");
+		return Plugin_Handled;
+	}
+	PrintToChat(client, " \x01[\x03Redie\x01] \x04List of players in redie:");
+	for (int i = 0; i <= MAXPLAYERS + 1; i++)
+	{
+		if(IsValidClient(i))
+		{
+			if (isInRedie[i])
+			{
+				char clientName[64] = "";
+				GetClientName(i, clientName, sizeof(clientName));
+				PrintToChat(client, " \x03 %s", clientName);
+			}
+		}
+	}
+	return Plugin_Handled;
 }
 
 public Action CollisionCheck(int entity, int other)
@@ -362,17 +452,17 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	{
 		if(isInRedie[client])
 		{
-			if(isBhop[client] && !GetConVarBool(isAutohopServer))
+			if(isBhop[client] && !GetConVarBool(autoHop))
 			{
-				if(buttons & IN_JUMP)
+				/*if(buttons & IN_JUMP)
 				{
 					if(GetEntProp(client, Prop_Data, "m_nWaterLevel") <= 1 && !(GetEntityMoveType(client) & MOVETYPE_LADDER) && !(GetEntityFlags(client) & FL_ONGROUND))
 					{
 						SetEntPropFloat(client, Prop_Send, "m_flStamina", 0.0);
 						buttons &= ~IN_JUMP;
 					}
-				}
-				SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
+				}*/
+				//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
 			}
 			if(buttons & IN_USE)
 			{
@@ -396,12 +486,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				SetEntityMoveType(client, MOVETYPE_WALK);
 				isInNoclip[client] = false;
 			}
-		}else if(GetConVarBool(isAutohopServer))
+		}else if(GetConVarBool(autoHop))
 		{
-			SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "1");
+			//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "1");
 		}else
 		{
-			SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
+			//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
 		}
 		lastButton[client] = buttons;
 		return Plugin_Continue;
@@ -491,10 +581,12 @@ public int RedieMenuHandler(Menu menu, MenuAction action, int param1, int param2
 					if(isBhop[param1])
 					{
 						isBhop[param1] = false;
+						SendConVarValue(param1, autoHop, "0");
 					}
 					else if(!isBhop[param1])
 					{
 						isBhop[param1] = true;
+						SendConVarValue(param1, autoHop, "1");
 					}
 					Menu_RedieMenu(param1, 1);
 				}
@@ -531,7 +623,7 @@ public Action Menu_RedieMenu(int client, int args)
 			redieMenu.AddItem("Noclip", "Noclip[✓]");
 		}
 		
-		if(!GetConVarBool(isAutohopServer))
+		if(!GetConVarBool(autoHop))
 		{
 			if(!isBhop[client])
 			{
