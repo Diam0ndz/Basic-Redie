@@ -73,7 +73,10 @@ public void OnPluginStart()
 	//HookEvent("round_end", Event_PostRoundEnd, EventHookMode_Post);
 	
 	AddNormalSoundHook(OnNormalSoundPlayed);
+	
 	AddCommandListener(Command_JoinTeam, "jointeam");
+	AddCommandListener(Command_OnSay, "say");
+	AddCommandListener(Command_OnSay, "say_team");
 	
 	HookEntityOutput("func_door", "OnBlockedOpening", EntityOutput_DoorBlocked);
 	HookEntityOutput("func_door", "OnBlockedClosing", EntityOutput_DoorBlocked);
@@ -278,6 +281,23 @@ public Action Command_JoinTeam(int client, const char[] command, int argc)
 	return Plugin_Continue;
 }
 
+public Action Command_OnSay(int client, const char[] command, int args)
+{
+	char message[200];
+	GetCmdArgString(message, sizeof(message));
+	
+	if(
+		(strcmp(message, "\"!redie\"", false) == 0) ||
+		(strcmp(message, "\"!unredie\"", false) == 0) ||
+		(strcmp(message, "\"!isredie\"", false) == 0) ||
+		(strcmp(message, "\"!rmenu\"", false) == 0)
+		)
+	{
+		return Plugin_Handled;
+	}
+	return Plugin_Continue;
+}
+
 public Action Command_Redie(int client, int args)
 {
 	if(!GetConVarBool(enabled))
@@ -454,14 +474,14 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		{
 			if(isBhop[client] && !GetConVarBool(autoHop))
 			{
-				/*if(buttons & IN_JUMP)
+				if(buttons & IN_JUMP)
 				{
 					if(GetEntProp(client, Prop_Data, "m_nWaterLevel") <= 1 && !(GetEntityMoveType(client) & MOVETYPE_LADDER) && !(GetEntityFlags(client) & FL_ONGROUND))
 					{
 						SetEntPropFloat(client, Prop_Send, "m_flStamina", 0.0);
 						buttons &= ~IN_JUMP;
 					}
-				}*/
+				}
 				//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
 			}
 			if(buttons & IN_USE)
