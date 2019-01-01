@@ -63,6 +63,7 @@ public void OnPluginStart()
 	
 	RegConsoleCmd("sm_redie", Command_Redie, "Become a ghost");
 	RegConsoleCmd("sm_unredie", Command_Unredie, "Get out of becoming a ghost");
+	RegConsoleCmd("sm_die", Command_Unredie, "Alias for sm_unredie");
 	RegConsoleCmd("sm_isredie", Command_IsRedie, "Lists players in redie", ADMFLAG_BAN);
 	RegConsoleCmd("sm_rmenu", Menu_RedieMenu, "If you are in redie, it opens the redie menu");
 	
@@ -71,6 +72,8 @@ public void OnPluginStart()
 	HookEvent("player_spawn", Event_PlayerSpawn);
 	HookEvent("round_start", Event_PreRoundStart, EventHookMode_Pre);
 	//HookEvent("round_end", Event_PostRoundEnd, EventHookMode_Post);
+	
+	autoHop.AddChangeHook(Hook_AutoHop);
 	
 	AddNormalSoundHook(OnNormalSoundPlayed);
 	
@@ -229,21 +232,24 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 {
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	SDKHook(client, SDKHook_SetTransmit, SetTransmit);
-	if(isInRedie[client])
+	if(IsValidClient(client))
 	{
-		isInRedie[client] = false;
-		if(!GetConVarBool(isAutohopServer))
+		if(isInRedie[client])
+		{
+			isInRedie[client] = false;
+			if(!GetConVarBool(isAutohopServer))
+			{
+				SendConVarValue(client, autoHop, "0");
+			}
+		}
+		if(GetConVarBool(isAutohopServer))
+		{
+			SendConVarValue(client, autoHop, "1");
+		}
+		else
 		{
 			SendConVarValue(client, autoHop, "0");
 		}
-	}
-	if(GetConVarBool(isAutohopServer))
-	{
-		SendConVarValue(client, autoHop, "1");
-	}
-	else
-	{
-		SendConVarValue(client, autoHop, "0");
 	}
 }
 
@@ -369,6 +375,17 @@ public void Redie(int client, bool fromDamage)
 	Menu_RedieMenu(client, 1);
 }
 
+public void Hook_AutoHop(ConVar convar, char[] oldVal, char[] newVal)
+{
+	if(StringToInt(newVal) > 0)
+	{
+		SetConVarBool(isAutohopServer, true);
+	} else
+	{
+		SetConVarBool(isAutohopServer, false);
+	}
+}
+
 public Action Command_Unredie(int client, int args)
 {
 	if(!GetConVarBool(enabled))
@@ -472,7 +489,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 	{
 		if(isInRedie[client])
 		{
-			if(isBhop[client] && !GetConVarBool(autoHop))
+			if(isBhop[client])
 			{
 				if(buttons & IN_JUMP)
 				{
@@ -482,7 +499,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 						buttons &= ~IN_JUMP;
 					}
 				}
-				//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
+				SendConVarValue(client, autoHop, "1");
 			}
 			if(buttons & IN_USE)
 			{
@@ -534,18 +551,24 @@ public Action WeaponCanUse(int client, int weapon)
 
 public Action SetTransmit(int entity, int client)
 {
-	if(isInRedie[entity] && entity != client)
+	if(IsValidClient(entity))
 	{
-		return Plugin_Handled;
+		if(isInRedie[entity] && entity != client)
+		{
+			return Plugin_Handled;
+		}
 	}
 	return Plugin_Continue;
 }
 
 public Action OnNormalSoundPlayed(int clients[64], int &numClients, char sample[PLATFORM_MAX_PATH], int &entity, int &channel, float &volume, int &level, int &pitch, int &flags)
 {
-	if(entity && entity <= MaxClients && isInRedie[entity])
+	if(IsValidClient(entity))
 	{
-		return Plugin_Handled;
+		if(entity && entity <= MaxClients && isInRedie[entity])
+		{
+			return Plugin_Handled;
+		}
 	}
 	return Plugin_Continue;
 }
@@ -567,6 +590,8 @@ stock bool IsValidClient(int client) //Checks for making sure we are a valid cli
 	if (client <= 0) return false;
 	if (client > MaxClients) return false;
 	if (!IsClientConnected(client)) return false;
+	if (IsFakeClient(client)) return false;
+	if (IsClientSourceTV(client))return false;
 	return IsClientInGame(client);
 }
 
@@ -617,11 +642,11 @@ public int RedieMenuHandler(Menu menu, MenuAction action, int param1, int param2
 						Menu_RedieTeleport(param1, 1);
 					}
 				}
-				else if(StrEqual(info, "Locations"))
-				{
-					//TO DO: list of all locations in new menu and when you select one it teleports you to it
-				}
 			}
+		}
+		case MenuAction_End:
+		{
+			delete menu;
 		}
 	}
 }
@@ -643,7 +668,7 @@ public Action Menu_RedieMenu(int client, int args)
 			redieMenu.AddItem("Noclip", "Noclip[✓]");
 		}
 		
-		if(!GetConVarBool(autoHop))
+		/*if(!GetConVarBool(autoHop))
 		{
 			if(!isBhop[client])
 			{
@@ -652,7 +677,7 @@ public Action Menu_RedieMenu(int client, int args)
 			{
 				redieMenu.AddItem("Bhop", "Bhop[✓]");
 			}
-		}
+		}*/
 		redieMenu.Display(client, MENU_TIME_FOREVER);
 		
 		return Plugin_Handled;
@@ -689,6 +714,10 @@ public int TeleportMenuHandler(Menu menu, MenuAction action, int param1, int par
 			{
 				Menu_RedieMenu(param1, 1);
 			}
+		}
+		case MenuAction_End:
+		{
+			delete menu;
 		}
 	}
 }
