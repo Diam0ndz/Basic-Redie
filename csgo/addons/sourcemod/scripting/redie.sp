@@ -35,6 +35,19 @@ int lastButton[MAXPLAYERS + 1];
 int lastUsedCommand[MAXPLAYERS + 1];
 int cooldownTimer = 5;
 
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+   CreateNative("Redie_IsInRedie", Native_IsInRedie);
+   return APLRes_Success;
+}
+
+public int Native_IsInRedie(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	
+	return isInRedie[client];
+}
+
 public Plugin myinfo = 
 {
 	name = "Basic Redie",
