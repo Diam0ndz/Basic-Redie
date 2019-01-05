@@ -68,15 +68,15 @@ public void OnPluginStart()
     
 	AutoExecConfig_SetCreateDirectory(true);
 	AutoExecConfig_SetCreateFile(true);
-	AutoExecConfig_SetFile("redie");
-	enabled = CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not", _, true, 0.0, true, 1.0);
-	isAutohopServer = CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default", FCVAR_HIDDEN, true, 0.0, true, 1.0);
+	AutoExecConfig_SetFile("plugin.redie");
+	enabled = AutoExecConfig_CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not", _, true, 0.0, true, 1.0);
+	isAutohopServer = AutoExecConfig_CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default", FCVAR_HIDDEN, true, 0.0, true, 1.0);
 	autoHop = FindConVar("sv_autobunnyhopping");
-	damageRespawns = CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not", _, true, 0.0, true, 1.0);
-	teleportsEnabled = CreateConVar("sm_redieteleports", "0", "Set if teleports are enabled while in redie", _, true, 0.0, true, 1.0);
-	triggersEnabled = CreateConVar("sm_redietriggers", "0", "Set if triggers are enabled while in redie", _, true, 0.0, true, 1.0);
-	trainsEnabled = CreateConVar("sm_redietrains", "0", "Set if trains(tanktrains) are enabled while in redie", _, true, 0.0, true, 1.0);
-	rotationsEnabled = CreateConVar("sm_redierotations", "0", "Set if func_rotatings are enabled while in redie", _, true, 0.0, true, 1.0);
+	damageRespawns = AutoExecConfig_CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not", _, true, 0.0, true, 1.0);
+	teleportsEnabled = AutoExecConfig_CreateConVar("sm_redieteleports", "0", "Set if teleports are enabled while in redie", _, true, 0.0, true, 1.0);
+	triggersEnabled = AutoExecConfig_CreateConVar("sm_redietriggers", "0", "Set if triggers are enabled while in redie", _, true, 0.0, true, 1.0);
+	trainsEnabled = AutoExecConfig_CreateConVar("sm_redietrains", "0", "Set if trains(tanktrains) are enabled while in redie", _, true, 0.0, true, 1.0);
+	rotationsEnabled = AutoExecConfig_CreateConVar("sm_redierotations", "0", "Set if func_rotatings are enabled while in redie", _, true, 0.0, true, 1.0);
 	AutoExecConfig_ExecuteFile();
 	AutoExecConfig_CleanFile();
 	
