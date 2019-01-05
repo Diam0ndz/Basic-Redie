@@ -278,6 +278,9 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 	SDKHook(client, SDKHook_SetTransmit, SetTransmit);
 	if(IsValidClient(client))
 	{
+		if(isInRedie[client])
+			isInRedie[client] = false;
+		
 		if(!GetConVarBool(isAutohopServer))
 		{
 			SendConVarValue(client, autoHop, "0");
@@ -447,7 +450,7 @@ public Action Command_Unredie(int client, int args)
 				}
 			}else
 			{
-				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must already be a ghost to get out of it!");
+				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must already be a ghost to use unredie!");
 				return Plugin_Handled;
 			}
 		}else
