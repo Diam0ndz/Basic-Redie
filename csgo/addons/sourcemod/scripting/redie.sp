@@ -284,9 +284,11 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 		if(!GetConVarBool(isAutohopServer))
 		{
 			SendConVarValue(client, autoHop, "0");
+			isBhop[client] = false;
 		}else
 		{
 			SendConVarValue(client, autoHop, "1");
+			isBhop[client] = true;
 		}
 	}
 }
