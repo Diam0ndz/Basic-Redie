@@ -10,6 +10,7 @@
 #include <sdktools>
 #include <cstrike>
 #include <sdkhooks>
+#include <autoexecconfig>
 
 #pragma newdecls required
 
@@ -64,15 +65,20 @@ public void OnPluginStart()
 	{
 		SetFailState("This plugin is for CSGO/CSS only.");	
 	}
-	
-	enabled = CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not");
-	isAutohopServer = CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default", FCVAR_HIDDEN);
+    
+	AutoExecConfig_SetCreateDirectory(true);
+	AutoExecConfig_SetCreateFile(true);
+	AutoExecConfig_SetFile("redie");
+	enabled = CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not", _, true, 0.0, true, 1.0);
+	isAutohopServer = CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default", FCVAR_HIDDEN, true, 0.0, true, 1.0);
 	autoHop = FindConVar("sv_autobunnyhopping");
-	damageRespawns = CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not");
-	teleportsEnabled = CreateConVar("sm_redieteleports", "0", "Set if teleports are enabled while in redie");
-	triggersEnabled = CreateConVar("sm_redietriggers", "0", "Set if triggers are enabled while in redie");
-	trainsEnabled = CreateConVar("sm_redietrains", "0", "Set if trains(tanktrains) are enabled while in redie");
-	rotationsEnabled = CreateConVar("sm_redierotations", "0", "Set if func_rotatings are enabled while in redie");
+	damageRespawns = CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not", _, true, 0.0, true, 1.0);
+	teleportsEnabled = CreateConVar("sm_redieteleports", "0", "Set if teleports are enabled while in redie", _, true, 0.0, true, 1.0);
+	triggersEnabled = CreateConVar("sm_redietriggers", "0", "Set if triggers are enabled while in redie", _, true, 0.0, true, 1.0);
+	trainsEnabled = CreateConVar("sm_redietrains", "0", "Set if trains(tanktrains) are enabled while in redie", _, true, 0.0, true, 1.0);
+	rotationsEnabled = CreateConVar("sm_redierotations", "0", "Set if func_rotatings are enabled while in redie", _, true, 0.0, true, 1.0);
+	AutoExecConfig_ExecuteFile();
+	AutoExecConfig_CleanFile();
 	
 	RegConsoleCmd("sm_redie", Command_Redie, "Become a ghost");
 	RegConsoleCmd("sm_unredie", Command_Unredie, "Get out of becoming a ghost");
@@ -123,7 +129,7 @@ public Action Event_PrePlayerDeath(Event event, const char[] name, bool dontBroa
 	if(isInRedie[client])
 	{
 		isInRedie[client] = false;
-		if(!GetConVarBool(isAutohopServer))
+		if(!isAutohopServer.BoolValue)
 		{
 			SendConVarValue(client, autoHop, "0");
 		}
@@ -144,7 +150,7 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
 	}
-	if(!GetConVarBool(rotationsEnabled))
+	if(!rotationsEnabled.BoolValue)
 	{
 		ent = MaxClients + 1;
 		while((ent = FindEntityByClassname(ent, "func_rotating")) != -1)
@@ -161,7 +167,7 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
 	}
-	if(!GetConVarBool(trainsEnabled))
+	if(!trainsEnabled.BoolValue)
 	{
 		ent = MaxClients + 1;
 		while((ent = FindEntityByClassname(ent, "func_tanktrain")) != -1)
@@ -185,7 +191,7 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 		SDKHookEx(ent, SDKHook_StartTouch, CollisionCheck);
 		SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
 	}
-	if(!GetConVarBool(triggersEnabled))
+	if(!triggersEnabled.BoolValue)
 	{
 		ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
 		while((ent = FindEntityByClassname(ent, "trigger_once")) != -1)
@@ -202,7 +208,7 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 			SDKHookEx(ent, SDKHook_Touch, CollisionCheck);
 		}
 	}
-	if(!GetConVarBool(teleportsEnabled))
+	if(!teleportsEnabled.BoolValue)
 	{
 		ent = MaxClients + 1; //ent is already defined, so we are changing/updating it
 		while((ent = FindEntityByClassname(ent, "trigger_teleport")) != -1)
@@ -215,7 +221,7 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 	ent = MaxClients + 1;
 	while((ent = FindEntityByClassname(ent, "trigger_hurt")) != -1)
 	{
-		if(GetConVarBool(damageRespawns))
+		if(damageRespawns.BoolValue)
 		{
 			if(GetEntPropFloat(ent, Prop_Data, "m_flDamage") > 0)
 			{
@@ -250,12 +256,12 @@ public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadca
 		if(isInRedie[client])
 		{
 			isInRedie[client] = false;
-			if(!GetConVarBool(isAutohopServer))
+			if(!isAutohopServer.BoolValue)
 			{
 				SendConVarValue(client, autoHop, "0");
 			}
 		}
-		if(GetConVarBool(isAutohopServer))
+		if(isAutohopServer.BoolValue)
 		{
 			SendConVarValue(client, autoHop, "1");
 		}
@@ -319,7 +325,7 @@ public Action Command_OnSay(int client, const char[] command, int args)
 
 public Action Command_Redie(int client, int args)
 {
-	if(!GetConVarBool(enabled))
+	if(!enabled.BoolValue)
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Redie is currently disabled!");
 		return Plugin_Handled;
@@ -401,7 +407,7 @@ public void Hook_AutoHop(ConVar convar, char[] oldVal, char[] newVal)
 
 public Action Command_Unredie(int client, int args)
 {
-	if(!GetConVarBool(enabled))
+	if(!enabled.BoolValue)
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Redie is currently disabled!");
 		return Plugin_Handled;
@@ -441,7 +447,7 @@ public void Unredie(int client)
 	ForcePlayerSuicide(client); 
 	isInRedie[client] = false; 
 	isBhop[client] = false;
-	if(!GetConVarBool(isAutohopServer))
+	if(!isAutohopServer.BoolValue)
 	{
 		SendConVarValue(client, autoHop, "0");
 	}
@@ -450,7 +456,7 @@ public void Unredie(int client)
 
 public Action Command_IsRedie(int client, int args)
 {
-	if(!GetConVarBool(enabled))
+	if(!enabled.BoolValue)
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Redie is currently disabled!");
 		return Plugin_Handled;
@@ -536,7 +542,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				SetEntityMoveType(client, MOVETYPE_WALK);
 				isInNoclip[client] = false;
 			}
-		}else if(GetConVarBool(autoHop))
+		}else if(autoHop.BoolValue)
 		{
 			//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "1");
 		}else
@@ -681,7 +687,7 @@ public Action Menu_RedieMenu(int client, int args)
 			redieMenu.AddItem("Noclip", "Noclip[✓]");
 		}
 		
-		/*if(!GetConVarBool(autoHop))
+		/*if(!autoHop.BoolValue)
 		{
 			if(!isBhop[client])
 			{
