@@ -4,7 +4,6 @@
 
 #define PLUGIN_AUTHOR "Diam0ndzx" //With Help from Extacy
 #define PLUGIN_VERSION "1.2"
-#define MAX_BUTTONS 25
 
 #include <sourcemod>
 #include <sdktools>
@@ -24,6 +23,8 @@ ConVar teleportsEnabled;
 ConVar triggersEnabled;
 ConVar rotationsEnabled;
 ConVar trainsEnabled;
+
+bool bIsAutohopServer; // Local ConVar value
 
 bool isInRedie[MAXPLAYERS + 1];
 bool canRedie[MAXPLAYERS + 1];
@@ -72,6 +73,7 @@ public void OnPluginStart()
 	enabled = AutoExecConfig_CreateConVar("sm_enableredie", "1", "Sets whether redie is enabled or not", _, true, 0.0, true, 1.0);
 	isAutohopServer = AutoExecConfig_CreateConVar("sm_redieautohopserver", "0", "Set if the server has autohop enabled by default", FCVAR_HIDDEN, true, 0.0, true, 1.0);
 	autoHop = FindConVar("sv_autobunnyhopping");
+	SetConVarFlags(autoHop, GetConVarFlags(autoHop) & ~FCVAR_REPLICATED);
 	damageRespawns = AutoExecConfig_CreateConVar("sm_rediedamagerespawns", "0", "Set if getting damages in redie respawns you or not", _, true, 0.0, true, 1.0);
 	teleportsEnabled = AutoExecConfig_CreateConVar("sm_redieteleports", "0", "Set if teleports are enabled while in redie", _, true, 0.0, true, 1.0);
 	triggersEnabled = AutoExecConfig_CreateConVar("sm_redietriggers", "0", "Set if triggers are enabled while in redie", _, true, 0.0, true, 1.0);
@@ -79,6 +81,8 @@ public void OnPluginStart()
 	rotationsEnabled = AutoExecConfig_CreateConVar("sm_redierotations", "0", "Set if func_rotatings are enabled while in redie", _, true, 0.0, true, 1.0);
 	AutoExecConfig_ExecuteFile();
 	AutoExecConfig_CleanFile();
+	
+	PrecacheModel("models/props/cs_italy/bananna.mdl");
 	
 	RegConsoleCmd("sm_redie", Command_Redie, "Become a ghost");
 	RegConsoleCmd("sm_unredie", Command_Unredie, "Get out of becoming a ghost");
@@ -92,7 +96,7 @@ public void OnPluginStart()
 	HookEvent("round_start", Event_PreRoundStart, EventHookMode_Pre);
 	//HookEvent("round_end", Event_PostRoundEnd, EventHookMode_Post);
 	
-	autoHop.AddChangeHook(Hook_AutoHop);
+	isAutohopServer.AddChangeHook(Hook_IsAutohopServer);
 	
 	AddNormalSoundHook(OnNormalSoundPlayed);
 	
@@ -107,9 +111,20 @@ public void OnPluginStart()
 	//HookEntityOutput("func_button", "OnPressed", EntityOutPut_ButtonPressed);
 }
 
+public void OnMapStart()
+{
+	PrecacheModel("models/props/cs_italy/bananna.mdl");
+}
+
 public void OnClientPutInServer(int client)
 {
-	SDKHook(client, SDKHook_WeaponCanUse, WeaponCanUse);
+	if (IsValidClient(client))
+	{
+		isBhop[client] = false;
+		SendConVarValue(client, autoHop, "0");
+		SDKHook(client, SDKHook_PreThink, OnPreThink);
+		SDKHook(client, SDKHook_WeaponCanUse, WeaponCanUse);
+	}
 }
 
 public void OnClientPostAdminCheck(int client)
@@ -125,14 +140,24 @@ public void OnClientDisconnect_Pos(int client)
 
 public Action Event_PrePlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int userid = event.GetInt("userid");
+	int client = GetClientOfUserId(userid);
+	
 	if(isInRedie[client])
 	{
-		isInRedie[client] = false;
+		CreateTimer(1.0, Timer_ResetValue, userid);
 		if(!isAutohopServer.BoolValue)
 		{
 			SendConVarValue(client, autoHop, "0");
 		}
+		
+		int ragdoll = GetEntPropEnt(client, Prop_Send, "m_hRagdoll");
+		if(ragdoll > 0 && IsValidEdict(ragdoll))
+		{
+			if(ragdoll != INVALID_ENT_REFERENCE)
+				AcceptEntityInput(ragdoll, "Kill");
+		}
+		
 		return Plugin_Handled; //Prevent things that would happen after normal players would die. 
 	}
 	else
@@ -250,25 +275,21 @@ public Action Event_PreRoundStart(Event event, const char[] name, bool dontBroad
 
 public Action Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(event.GetInt("userid"));
 	SDKHook(client, SDKHook_SetTransmit, SetTransmit);
 	if(IsValidClient(client))
 	{
 		if(isInRedie[client])
-		{
 			isInRedie[client] = false;
-			if(!isAutohopServer.BoolValue)
-			{
-				SendConVarValue(client, autoHop, "0");
-			}
-		}
-		if(isAutohopServer.BoolValue)
-		{
-			SendConVarValue(client, autoHop, "1");
-		}
-		else
+		
+		if(!GetConVarBool(isAutohopServer))
 		{
 			SendConVarValue(client, autoHop, "0");
+			isBhop[client] = false;
+		}else
+		{
+			SendConVarValue(client, autoHop, "1");
+			isBhop[client] = true;
 		}
 	}
 }
@@ -340,7 +361,7 @@ public Action Command_Redie(int client, int args)
 				int time = GetTime();
 				if(time - lastUsedCommand[client] < cooldownTimer)
 				{
-					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait before using the command again.");
+					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait \x02%i \x04second(s) before using that command again.", cooldownTimer - (time - lastUsedCommand[client]));
 					return Plugin_Handled;
 				}
 				else
@@ -383,6 +404,7 @@ public void Redie(int client, bool fromDamage)
 			RemoveEdict(weaponIndex); //Remove any weapons the player could have had (Shouldn't happen because you must be dead to use the command!)
 		}
 	}
+	SetEntityModel(client, "models/props/cs_italy/bananna.mdl");
 	SetEntProp(client, Prop_Send, "m_lifeState", 1); //Make the server think we are dead
 	SetEntData(client, FindSendPropInfo("CBaseEntity", "m_CollisionGroup"), 2, 4, true); //No collisions with other players
 	SetEntProp(client, Prop_Data, "m_ArmorValue", 0); //Make sure we dont have armor
@@ -399,15 +421,20 @@ public void Redie(int client, bool fromDamage)
 	Menu_RedieMenu(client, 1);
 }
 
-public void Hook_AutoHop(ConVar convar, char[] oldVal, char[] newVal)
+public void Hook_IsAutohopServer(ConVar convar, char[] oldVal, char[] newVal)
 {
 	if(StringToInt(newVal) > 0)
 	{
+<<<<<<< HEAD
 		SetConVarBool(isAutohopServer, true);
 	}
 	else
+=======
+		bIsAutohopServer = true;
+	} else
+>>>>>>> 02f85543d1067d8477a691433484e9fedc326241
 	{
-		SetConVarBool(isAutohopServer, false);
+		bIsAutohopServer = false;
 	}
 }
 
@@ -427,7 +454,7 @@ public Action Command_Unredie(int client, int args)
 				int time = GetTime();
 				if(time - lastUsedCommand[client] < cooldownTimer)
 				{
-					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait before using the command again.");
+					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait \x02%i \x04second(s) before using that command again.", cooldownTimer - (time - lastUsedCommand[client]));
 					return Plugin_Handled;
 				}
 				else
@@ -439,7 +466,7 @@ public Action Command_Unredie(int client, int args)
 			}
 			else
 			{
-				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must already be a ghost to get out of it!");
+				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must already be a ghost to use unredie!");
 				return Plugin_Handled;
 			}
 		}
@@ -462,6 +489,13 @@ public void Unredie(int client)
 		SendConVarValue(client, autoHop, "0");
 	}
 	PrintToChat(client, " \x01[\x03Redie\x01] \x04You are no longer a ghost!");
+}
+
+public Action Timer_ResetValue(Handle timer, any userid)
+{
+	int client = GetClientOfUserId(userid);
+	isInRedie[client] = false;
+	return Plugin_Stop;
 }
 
 public Action Command_IsRedie(int client, int args)
@@ -514,22 +548,16 @@ public Action HurtCollisionCheck(int entity, int other)
 
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon)
 {
-	if(IsValidClient(client))
+	if(isInRedie[client])
 	{
-		if(isInRedie[client])
+		if (buttons & IN_RELOAD)
 		{
-			if(isBhop[client])
+			if (!(lastButton[client] & IN_RELOAD))
 			{
-				if(buttons & IN_JUMP)
-				{
-					if(GetEntProp(client, Prop_Data, "m_nWaterLevel") <= 1 && !(GetEntityMoveType(client) & MOVETYPE_LADDER) && !(GetEntityFlags(client) & FL_ONGROUND))
-					{
-						SetEntPropFloat(client, Prop_Send, "m_flStamina", 0.0);
-						buttons &= ~IN_JUMP;
-					}
-				}
-				SendConVarValue(client, autoHop, "1");
+				SetEntityMoveType(client, MOVETYPE_NOCLIP);
+				isInNoclip[client] = true;
 			}
+<<<<<<< HEAD
 			if(buttons & IN_USE)
 			{
 				if(!(lastButton[client] & IN_USE))
@@ -560,16 +588,40 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "1");
 		}
 		else
-		{
-			//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
+=======
 		}
+		else if (lastButton[client] & IN_RELOAD)
+		{
+			SetEntityMoveType(client, MOVETYPE_WALK);
+			isInNoclip[client] = false;
+		}
+		else if (buttons & IN_USE)
+>>>>>>> 02f85543d1067d8477a691433484e9fedc326241
+		{
+			return Plugin_Handled;
+		}
+<<<<<<< HEAD
 		lastButton[client] = buttons;
 		return Plugin_Continue;
 	}
 	else
-	{
-		return Plugin_Handled;
+=======
 	}
+	lastButton[client] = buttons;
+	return Plugin_Continue;
+}
+
+public Action OnPreThink(int client)
+{
+	if (!isBhop[client])
+>>>>>>> 02f85543d1067d8477a691433484e9fedc326241
+	{
+		SetConVarBool(autoHop, false);
+		return Plugin_Continue;
+	}
+	
+	SetConVarBool(autoHop, true);
+	return Plugin_Continue;
 }
 
 public Action WeaponCanUse(int client, int weapon)
@@ -642,31 +694,33 @@ public int RedieMenuHandler(Menu menu, MenuAction action, int param1, int param2
 				menu.GetItem(param2, info, sizeof(info));
 				if(StrEqual(info, "Noclip"))
 				{
-					PrintToChat(param1, " \x01[\x03Redie\x01] \x04Noclip toggled.");
 					if(isInNoclip[param1])
 					{
 						SetEntityMoveType(param1, MOVETYPE_WALK);
 						isInNoclip[param1] = false;
+						PrintToChat(param1, "\x01[\x03Redie\x01] \x04Noclip \x0Fdisabled!");
 					}
 					else if(!isInNoclip[param1])
 					{
 						SetEntityMoveType(param1, MOVETYPE_NOCLIP);
 						isInNoclip[param1] = true;
+						PrintToChat(param1, "\x01[\x03Redie\x01] \x04Noclip \x06enabled!");
 					}
 					Menu_RedieMenu(param1, 1);
 				}
 				else if(StrEqual(info, "Bhop"))
 				{
-					PrintToChat(param1, " \x01[\x03Redie\x01] \x04Bhop toggled.");
 					if(isBhop[param1])
 					{
 						isBhop[param1] = false;
 						SendConVarValue(param1, autoHop, "0");
+						PrintToChat(param1, "\x01[\x03Redie\x01] \x04Auto Bhop \x0Fdisabled!");
 					}
 					else if(!isBhop[param1])
 					{
 						isBhop[param1] = true;
 						SendConVarValue(param1, autoHop, "1");
+						PrintToChat(param1, "\x01[\x03Redie\x01] \x04Auto Bhop \x06enabled!");
 					}
 					Menu_RedieMenu(param1, 1);
 				}
@@ -703,6 +757,20 @@ public Action Menu_RedieMenu(int client, int args)
 		{
 			redieMenu.AddItem("Noclip", "Noclip[✓]");
 		}
+<<<<<<< HEAD
+=======
+		
+		if(!bIsAutohopServer)
+		{
+			if(!isBhop[client])
+			{
+				redieMenu.AddItem("Bhop", "Bhop[X]");
+			} else
+			{
+				redieMenu.AddItem("Bhop", "Bhop[✓]");
+			}
+		}
+>>>>>>> 02f85543d1067d8477a691433484e9fedc326241
 		redieMenu.Display(client, MENU_TIME_FOREVER);
 		
 		return Plugin_Handled;
