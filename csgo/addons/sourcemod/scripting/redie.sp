@@ -134,7 +134,8 @@ public Action Event_PrePlayerDeath(Event event, const char[] name, bool dontBroa
 			SendConVarValue(client, autoHop, "0");
 		}
 		return Plugin_Handled; //Prevent things that would happen after normal players would die. 
-	}else
+	}
+	else
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Type '!redie' to become a ghost!");
 		return Plugin_Continue;
@@ -341,23 +342,27 @@ public Action Command_Redie(int client, int args)
 				{
 					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait before using the command again.");
 					return Plugin_Handled;
-				}else
+				}
+				else
 				{
 					lastUsedCommand[client] = time;
 					Redie(client, false);
 					return Plugin_Handled;
 				}
-			}else
+			}
+			else
 			{
 				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be dead in order to become a ghost!");
 				return Plugin_Handled;
 			}
-		}else
+		}
+		else
 		{
 			PrintToChat(client, " \x01[\x03Redie\x01] \x04Wait for a new round to start!");
 			return Plugin_Handled;
 		}
-	}else
+	}
+	else
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be a valid client to use this command!");
 		return Plugin_Handled;
@@ -399,7 +404,8 @@ public void Hook_AutoHop(ConVar convar, char[] oldVal, char[] newVal)
 	if(StringToInt(newVal) > 0)
 	{
 		SetConVarBool(isAutohopServer, true);
-	} else
+	}
+	else
 	{
 		SetConVarBool(isAutohopServer, false);
 	}
@@ -411,8 +417,9 @@ public Action Command_Unredie(int client, int args)
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04Redie is currently disabled!");
 		return Plugin_Handled;
-	}else
-		{
+	}
+	else
+	{
 		if(IsValidClient(client))
 		{
 			if(isInRedie[client])
@@ -422,18 +429,21 @@ public Action Command_Unredie(int client, int args)
 				{
 					PrintToChat(client, " \x01[\x03Redie\x01] \x04You are using commands too fast! Please wait before using the command again.");
 					return Plugin_Handled;
-				}else
+				}
+				else
 				{
 					lastUsedCommand[client] = time;
 					Unredie(client);
 					return Plugin_Handled;
 				}
-			}else
+			}
+			else
 			{
 				PrintToChat(client, " \x01[\x03Redie\x01] \x04You must already be a ghost to get out of it!");
 				return Plugin_Handled;
 			}
-		}else
+		}
+		else
 		{
 			PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be a valid client to use this command!");
 			return Plugin_Handled;
@@ -526,7 +536,8 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				{
 					return Plugin_Handled;
 				}
-			}else if(lastButton[client] & IN_USE)
+			}
+			else if(lastButton[client] & IN_USE)
 			{
 				return Plugin_Continue;
 			}
@@ -537,21 +548,25 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					SetEntityMoveType(client, MOVETYPE_NOCLIP);
 					isInNoclip[client] = true;
 				}
-			}else if(lastButton[client] & IN_RELOAD)
+			}
+			else if(lastButton[client] & IN_RELOAD)
 			{
 				SetEntityMoveType(client, MOVETYPE_WALK);
 				isInNoclip[client] = false;
 			}
-		}else if(autoHop.BoolValue)
+		}
+		else if(autoHop.BoolValue)
 		{
 			//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "1");
-		}else
+		}
+		else
 		{
 			//SendConVarValue(client, FindConVar("sv_autobunnyhopping"), "0");
 		}
 		lastButton[client] = buttons;
 		return Plugin_Continue;
-	}else
+	}
+	else
 	{
 		return Plugin_Handled;
 	}
@@ -562,7 +577,8 @@ public Action WeaponCanUse(int client, int weapon)
 	if(isInRedie[client])
 	{
 		return Plugin_Handled; //If a player in redie used a weapon, null it.
-	}else
+	}
+	else
 	{
 		return Plugin_Continue;
 	}
@@ -682,25 +698,16 @@ public Action Menu_RedieMenu(int client, int args)
 		if(!isInNoclip[client])
 		{
 			redieMenu.AddItem("Noclip", "Noclip[X]");
-		}else
+		}
+		else
 		{
 			redieMenu.AddItem("Noclip", "Noclip[✓]");
 		}
-		
-		/*if(!autoHop.BoolValue)
-		{
-			if(!isBhop[client])
-			{
-				redieMenu.AddItem("Bhop", "Bhop[X]");
-			} else
-			{
-				redieMenu.AddItem("Bhop", "Bhop[✓]");
-			}
-		}*/
 		redieMenu.Display(client, MENU_TIME_FOREVER);
 		
 		return Plugin_Handled;
-	}else
+	}
+	else
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be in redie to access the redie menu.");
 		return Plugin_Handled;
@@ -761,7 +768,8 @@ public Action Menu_RedieTeleport(int client, int args)
 		teleportMenu.ExitBackButton = true;
 		teleportMenu.Display(client, MENU_TIME_FOREVER);
 		return Plugin_Handled;
-	}else
+	}
+	else
 	{
 		PrintToChat(client, " \x01[\x03Redie\x01] \x04You must be in redie to access this menu.");
 		return Plugin_Handled;
